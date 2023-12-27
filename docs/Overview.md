@@ -147,8 +147,51 @@ data DiscoveryNodeAction
  - MP
 
 ## Commit Fold
- - Validator
- - MP
+### Validator 
+Defined by `pfoldValidatorW`
+
+#### Redeemers
+```
+data PFoldAct (s :: S)
+  = PFoldNodes
+      ( Term
+          s
+          ( PDataRecord
+              '[ "nodeIdxs" ':= PBuiltinList (PAsData PInteger) ]
+          )
+      )
+  | PReclaim (Term s (PDataRecord '[]))
+```
+- PFoldNodes
+  - Checks (via `pfoldNodes`):
+    - has one input
+    - does not mint or burn
+    - the current node's key is output to the new node
+    - the new node's `next` and  `committed` fields match the commit fold state (?)
+    - the datum does not change owners
+    - no assets (excluding ada) are taken from or added to the valdator address
+    - the validity window falls before the discovery deadline
+- PReclaim
+
+### MP
+Defined by `pmintFoldPolicyW`.
+#### Redeemers
+```
+data PFoldMintAct (s :: S)
+  = PMintFold (Term s (PDataRecord '[]))
+  | PBurnFold (Term s (PDataRecord '[]))
+```
+- PMintFold
+  - Checks (via `pmintCommitFold`):
+    - exactly one token from this policyId is minted
+    - one commit fold token is output
+    - the output datum currNode points to the referenced datum
+    - the output datum has no commitment
+    - the reference input includes an origin node token
+    - the validity window falls before the discovery deadline
+- PBurnFold
+  - Checks (via `pburnCommitFold`):
+    - exactly one token from this policy is burned
 
 ## Reward Fold
  - Validator
