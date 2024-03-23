@@ -34,7 +34,8 @@ data PProxyTokenHolderDatum (s :: S)
       ( Term
           s
           ( PDataRecord
-              '[ "returnAddress" ':= PAddress
+              '[ "totalCommitted" ':= PInteger 
+               , "returnAddress" ':= PAddress
                ]
           )
       )
@@ -63,8 +64,9 @@ PlutusTx.unstableMakeIsData ''LNodeAction
 data PLNodeAction (s :: S)
   = PLLinkedListAct (Term s (PDataRecord '[]))
   | PLModifyCommitment (Term s (PDataRecord '[]))
-  | PLCommitFoldAct (Term s (PDataRecord '["commitIdx" ':= PInteger]))
-  | PLRewardFoldAct (Term s (PDataRecord '["rewardsIdx" ':= PInteger]))
+  | PLCommitFoldAct (Term s (PDataRecord '[]))
+  | PLRewardFoldAct (Term s (PDataRecord '[]))
+  | PLClaimAct (Term s (PDataRecord '[]))
   deriving stock (Generic)
   deriving anyclass (PlutusType, PIsData, PShow)
 
@@ -91,10 +93,11 @@ data PLBELockConfig (s :: S)
                , "penaltyAddress" ':= PAddress
                , "commitCred" ':= PStakingCredential
                , "rewardCred" ':= PStakingCredential
+               , "rewardFoldCS" ':= PCurrencySymbol
                ]
           )
       )
-  deriving stock (Generic)
+  deriving stock (Generic) 
   deriving anyclass (PlutusType, PIsData, PDataFields, PEq)
 
 instance DerivePlutusType PLBELockConfig where type DPTStrat _ = PlutusTypeData
@@ -258,6 +261,7 @@ data PLiquidityHolderDatum (s :: S)
           ( PDataRecord
               '[ "lpTokenName" ':= PTokenName
                , "totalCommitted" ':= PInteger 
+               , "totalLPTokens" ':= PInteger
                ]
           )
       )

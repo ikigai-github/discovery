@@ -16,6 +16,7 @@ import Plutarch.Api.V1 (
 import Plutarch.Api.V1.AssocMap qualified as AssocMap
 import Plutarch.Api.V1.Value (PValue (..), plovelaceValueOf, pnoAdaValue, pvalueOf)
 import Plutarch.Api.V2 (
+  PPubKeyHash (..),
   PCurrencySymbol (..),
   POutputDatum (..),
   PScriptPurpose (PSpending),
@@ -27,9 +28,11 @@ import Plutarch.Extra.ScriptContext (pfromPDatum)
 import Plutarch.Monadic qualified as P
 import Plutarch.Prelude
 import Plutarch.Unsafe (punsafeCoerce)
-import PriceDiscoveryEvent.Utils (passert, pcontainsCurrencySymbols, pfindCurrencySymbolsByTokenPrefix, pheadSingleton, ptryOwnInput, ptryOwnOutput, phasCS)
+import PriceDiscoveryEvent.Utils (passert, pcontainsCurrencySymbols, pfindCurrencySymbolsByTokenPrefix, pheadSingleton, ptryOwnInput, ptryOwnOutput, phasCS, pisFinite, pmustFind)
 import Types.Constants (rewardFoldTN)
 import Types.LiquiditySet (PLBELockConfig (..), PLiquiditySetNode (..), PLNodeAction (..))
+import PriceDiscoveryEvent.MultiFoldLiquidity (PDistributionFoldDatum (..))
+import Types.DiscoverySet (PNodeKey(..))
 
 pLiquidityGlobalLogicW :: Term s (PAsData PCurrencySymbol :--> PStakeValidator)
 pLiquidityGlobalLogicW = phoistAcyclic $ plam $ \foldCS' _redeemer ctx -> P.do
@@ -65,7 +68,7 @@ pLiquiditySetValidator cfg prefix = plam $ \discConfig dat redmn ctx' ->
             PNothing -> perror 
       otherRedeemers -> P.do 
         ctx <- pletFields @'["txInfo", "purpose"] ctx'
-        info <- pletFields @'["inputs", "outputs", "mint", "validRange"] ctx.txInfo
+        info <- pletFields @'["inputs", "outputs", "mint", "validRange", "signatories", "referenceInputs"] ctx.txInfo
         txInputs <- plet info.inputs
 
         let ownInput = P.do
@@ -75,15 +78,15 @@ pLiquiditySetValidator cfg prefix = plam $ \discConfig dat redmn ctx' ->
         ownInputF <- pletFields @'["value", "address"] ownInput
 
         let ownInputValue = pfromData ownInputF.value
-            -- all those CSs has tokens that prefixed by Node prefix
-            -- any of those can be actual Node CS
-            potentialNodeCSs = pfindCurrencySymbolsByTokenPrefix # ownInputValue # pconstant prefix
 
         case otherRedeemers of 
           PLLinkedListAct _ -> P.do
+            -- all those CSs has tokens that prefixed by Node prefix
+            -- any of those can be actual Node CS
+            let potentialNodeCSs = pfindCurrencySymbolsByTokenPrefix # ownInputValue # pconstant prefix
             -- TODO: Current launchpad token cannot start with FSN
             passert
-              "Must mint/burn for any FinSet input"
+              "Must mint/burn for any linked list interaction"
               (pcontainsCurrencySymbols # pfromData info.mint # potentialNodeCSs)
             (popaque $ pconstant ())
           PLModifyCommitment _ -> P.do
@@ -98,6 +101,29 @@ pLiquiditySetValidator cfg prefix = plam $ \discConfig dat redmn ctx' ->
             passert "Cannot reduce ada value" (plovelaceValueOf # ownInputF.value #< plovelaceValueOf # ownOutputF.value + 10_000_000)
             passert "No tokens minted" (pfromData info.mint #== mempty)
             passert "deadline passed" ((pafter # (pfromData configF.discoveryDeadline - 86_400) # info.validRange))
+            passert "vrange not finite" (pisFinite # info.validRange)
+            (popaque $ pconstant ()) 
+          PLClaimAct _ -> P.do
+            configF <- pletFields @'["rewardFoldCS"] discConfig
+            let nodeKey = pmatch (pfield @"key" # oldDatum) $ \case
+                  PEmpty _ -> perror
+                  PKey ((pfield @"_0" #) -> nkey) -> pdata $ pcon $ PPubKeyHash $ pfromData nkey 
+                foldRefInput = pfield @"resolved" #$          
+                  pmustFind @PBuiltinList 
+                    # plam (\inp -> pvalueOf # (pfield @"value" # (pfield @"resolved" # inp)) # configF.rewardFoldCS # rewardFoldTN #== 1)
+                    # info.referenceInputs
+            foldRefInputF <- pletFields @'["datum"] foldRefInput
+            POutputDatum ((pfield @"outputDatum" #) -> rFoldD) <- pmatch foldRefInputF.datum
+            let rFoldDatum = punsafeCoerce @_ @_ @PDistributionFoldDatum rFoldD
+                atEnd = pmatch
+                          (pfield @"next" # (pfield @"currNode" # rFoldDatum))
+                          ( \case
+                              PEmpty _ -> pconstant True
+                              PKey _ -> pconstant False
+                          )
+            passert "RFold not completed" atEnd
+            passert "signed by user." (pelem # nodeKey # info.signatories)
+            passert "No tokens minted" (pfromData info.mint #== mempty)
             (popaque $ pconstant ()) 
         
 -- TODO PlaceHolder # This contribution holds only the minimum amount of Ada + the FoldingFee, it cannot be updated. It cannot be removed until the reward fold has completed.

@@ -118,7 +118,7 @@ parseNodeOutputUtxo cfg = phoistAcyclic $
     passert "node is not ordered" $ validNode # datum
     passert "Incorrect token name" $ nodeKey #== datumKey
     passert "Does not hold nodeAda" $
-      plovelaceValueOf # value #>= minCommitment
+      plovelaceValueOf # value #>= 5_000_000
     pcon (PPair value datum)
 
 makeCommon ::
@@ -186,13 +186,13 @@ makeCommon cfg ctx' = do
           , nodeInputs
           , nodeOutputs
           }
-
+  vrange <- tcont . plet $ pfromData info.validRange
   pure
     ( common
     , info.inputs
     , info.outputs
     , info.signatories
-    , info.validRange
+    , vrange
     )
 
 pInit :: forall (s :: S). Config -> PPriceDiscoveryCommon s -> Term s PUnit
@@ -315,7 +315,7 @@ pRemove cfg common vrange discConfig outs sigs = plam $ \pkToRemove node -> P.do
   configF <- pletFields @'["discoveryDeadline", "penaltyAddress"] discConfig
 
   let ownInputLovelace = plovelaceValueOf # removedValue
-      ownInputFee = pdivideCeil # ownInputLovelace # 4
+      ownInputFee = pdivideCeil # (ownInputLovelace - 4_000_000) # 4
       discDeadline = configF.discoveryDeadline
   
   let finalCheck =
@@ -326,12 +326,8 @@ pRemove cfg common vrange discConfig outs sigs = plam $ \pkToRemove node -> P.do
               ( pany
                   # plam
                     ( \out ->
-                        pfield @"address"
-                          # out
-                          #== configF.penaltyAddress
-                          #&& ownInputFee
-                          #<= plovelaceValueOf
-                          # (pfield @"value" # out)
+                        pfield @"address" # out #== configF.penaltyAddress
+                          #&& ownInputFee #<= (plovelaceValueOf # (pfield @"value" # out))
                     )
                   # outs -- must pay 25% fee
               )
@@ -345,8 +341,7 @@ pRemove cfg common vrange discConfig outs sigs = plam $ \pkToRemove node -> P.do
 pClaim ::
   forall (s :: S).
   Config ->
-  PPriceDiscoveryCommon s ->
-  Term s (PBuiltinList PTxOut) ->
+  PPriceDiscoveryCommon s ->  Term s (PBuiltinList PTxOut) ->
   Term s (PBuiltinList (PAsData PPubKeyHash)) ->
   Term s (PAsData PPubKeyHash :--> PUnit)
 pClaim cfg common outs sigs = plam $ \pkToRemove -> P.do
