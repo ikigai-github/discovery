@@ -1,3 +1,25 @@
+# Use Cases
+## Price Discovery Event (PDE)
+
+
+Given a certain supply of tokens, a price discovery event is created with the following parameters:
+```
+data PDiscoveryLaunchConfig (s :: S)
+  = PDiscoveryLaunchConfig
+      ( Term
+          s
+          ( PDataRecord
+              '[ "discoveryDeadline" ':= PPOSIXTime
+               , "penaltyAddress" ':= PAddress
+               , "globalCred" ':= PStakingCredential
+               ]
+          )
+      )
+```
+
+## Liquidity Bootstrapping Event (LBE)
+The LBE or Liquidity protocol extends the PDE/Discovery protocol by adding an additional Commit Fold??? Why is Commit Fold in the PDE directory?
+
 # Protocol Components
 
 ## Overview
@@ -11,7 +33,7 @@
 - Misc
 
 ## Discovery
- 
+
 ### Stake Validator 
    - Unparameterized
    - Checks: 
