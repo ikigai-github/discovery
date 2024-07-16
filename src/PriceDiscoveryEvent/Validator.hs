@@ -27,8 +27,8 @@ import Plutarch.Extra.ScriptContext (pfromPDatum)
 import Plutarch.Monadic qualified as P
 import Plutarch.Prelude
 import Plutarch.Unsafe (punsafeCoerce)
-import PriceDiscoveryEvent.Utils (passert, pcontainsCurrencySymbols, pfindCurrencySymbolsByTokenPrefix, pheadSingleton, ptryOwnInput, ptryOwnOutput, phasCS)
-import Types.Constants (rewardFoldTN)
+import PriceDiscoveryEvent.Utils (passert, pcontainsCurrencySymbols, pfindCurrencySymbolsByTokenPrefix, pheadSingleton, ptryOwnInput, ptryOwnOutput, phasCS, (#>=))
+import Types.Constants (rewardFoldTN, minAdaToCommit)
 import Types.DiscoverySet (PDiscoveryLaunchConfig (..), PDiscoverySetNode (..), PNodeValidatorAction (..))
 
 pDiscoverGlobalLogicW :: Term s (PAsData PCurrencySymbol :--> PStakeValidator)
@@ -89,7 +89,8 @@ pDiscoverySetValidator cfg prefix = plam $ \discConfig dat redmn ctx' ->
             passert "Cannot modify datum when committing" (newDatum #== oldDatum)
             passert "Cannot modify non-ada value" (pnoAdaValue # ownInputF.value #== pnoAdaValue # ownOutputF.value)
             passert "Cannot reduce ada value" (plovelaceValueOf # ownInputF.value #< plovelaceValueOf # ownOutputF.value + 10_000_000)
+            passert "Should have minimum ADA commitment" (plovelaceValueOf # ownOutputF.value #>= minAdaToCommit)
             passert "No tokens minted" (pfromData info.mint #== mempty)
-            passert "deadline passed" ((pafter # (pfromData configF.discoveryDeadline - 86_400) # info.validRange))
+            passert "deadline passed" ((pafter # (pfromData configF.discoveryDeadline - 86_400_000) # info.validRange))
             (popaque $ pconstant ()) 
         
