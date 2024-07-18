@@ -14,7 +14,7 @@ import Plutarch.Api.V1 (
   PCredential (..),
  )
 import Plutarch.Api.V1.AssocMap qualified as AssocMap
-import Plutarch.Api.V1.Value (PValue (..), plovelaceValueOf, pnoAdaValue, pvalueOf)
+import Plutarch.Api.V1.Value (plovelaceValueOf, pnoAdaValue)
 import Plutarch.Api.V2 (
   PCurrencySymbol (..),
   POutputDatum (..),
@@ -22,13 +22,12 @@ import Plutarch.Api.V2 (
   PValidator,
   PStakeValidator,
  )
-import Plutarch.Extra.Interval (pafter, pbefore)
+import Plutarch.Extra.Interval (pafter)
 import Plutarch.Extra.ScriptContext (pfromPDatum)
 import Plutarch.Monadic qualified as P
 import Plutarch.Prelude
 import Plutarch.Unsafe (punsafeCoerce)
-import PriceDiscoveryEvent.Utils (passert, pcontainsCurrencySymbols, pfindCurrencySymbolsByTokenPrefix, pheadSingleton, ptryOwnInput, ptryOwnOutput, phasCS)
-import Types.Constants (rewardFoldTN)
+import PriceDiscoveryEvent.Utils (passert, pcontainsCurrencySymbols, pfindCurrencySymbolsByTokenPrefix, ptryOwnInput, ptryOwnOutput, phasCS)
 import Types.DiscoverySet (PDiscoveryLaunchConfig (..), PDiscoverySetNode (..), PNodeValidatorAction (..))
 
 pDiscoverGlobalLogicW :: Term s (PAsData PCurrencySymbol :--> PStakeValidator)
@@ -88,8 +87,8 @@ pDiscoverySetValidator cfg prefix = plam $ \discConfig dat redmn ctx' ->
             let newDatum = pfromPDatum @PDiscoverySetNode # ownOutputDatum
             passert "Cannot modify datum when committing" (newDatum #== oldDatum)
             passert "Cannot modify non-ada value" (pnoAdaValue # ownInputF.value #== pnoAdaValue # ownOutputF.value)
-            passert "Cannot reduce ada value" (plovelaceValueOf # ownInputF.value #< plovelaceValueOf # ownOutputF.value + 10_000_000)
+            passert "Cannot reduce ada value" (plovelaceValueOf # ownInputF.value #< plovelaceValueOf # ownOutputF.value - 10_000_000)
             passert "No tokens minted" (pfromData info.mint #== mempty)
-            passert "deadline passed" ((pafter # (pfromData configF.discoveryDeadline - 86_400) # info.validRange))
+            passert "deadline passed" ((pafter # (pfromData configF.discoveryDeadline - 86_400_000) # info.validRange))
             (popaque $ pconstant ()) 
         
