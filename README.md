@@ -26,3 +26,6 @@ Then run:
 
 # License
 See the [LICENSE](LICENSE) file for license rights and limitations (MIT).
+
+# Audit Report
+See the [Audit Report](Final_Audit_Report.pdf) for a detailed report on the security of the code in this repository, as written by EMURGO Diligence.
